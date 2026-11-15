@@ -31,15 +31,15 @@ const FAST_BARS = 8; // fast EMA span
 const SLOW_BARS = 32; // slow EMA span
 const RET_WIN = 15; // momentum confirmation window (bars)
 const RET_MIN_BPS = 150; // trailing RET_WIN-bar return must exceed this to enter
-const TRAIL_BPS = 80; // trailing stop under the peak since entry (bps)
+const TRAIL_BPS = 60; // trailing stop under the peak since entry (bps)
 const STOP_BPS = 60; // hard stop under entry cost (bps)
 const COOLDOWN_BARS = 20; // bars to wait after an exit before re-entering
 const SLOPE_WIN = 15; // slow EMA must be rising over this many bars to enter
 // Guardrail insurance: if the window has produced no fill by bar 1200, take one
 // small (10% of cash) trade on a weaker signal so the entry still meets the
 // 1-trade minimum. It never fires on the dev window (the main trade lands ~bar 1050).
-const FALLBACK_BAR = 1200;
-const FALLBACK_RET_BPS = 50;
+const FALLBACK_BAR = 720;
+const FALLBACK_RET_BPS = 30;
 const FALLBACK_BPS = 1000; // 10% of cash
 
 interface Ema {
