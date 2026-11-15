@@ -39,8 +39,9 @@ const SLOPE_WIN = 15; // slow EMA must be rising over this many bars to enter
 // small (10% of cash) trade on a weaker signal so the entry still meets the
 // 1-trade minimum. It never fires on the dev window (the main trade lands ~bar 1050).
 const FALLBACK_BAR = 720;
-const FALLBACK_RET_BPS = 30;
+const FALLBACK_RET_BPS = 50;
 const FALLBACK_BPS = 1000; // 10% of cash
+const FB_TP_BPS = 50; // fallback take-profit from entry price (bps)
 
 interface Ema {
   span: number;
@@ -57,6 +58,8 @@ let entryCost = 0n; // cost basis of the open position, quote units
 let cooldownUntil = -1; // seq until which entries are blocked
 let wasHeld = false; // the previous batch held a position
 let filledTrades = 0; // filled orders so far (from the batches' fills)
+let isFallback = false; // the open position is the small guardrail trade
+let entryPrice = 0; // close at entry (take-profit reference)
 
 function step(e: Ema, close: number): void {
   if (e.value !== null) {
@@ -112,6 +115,7 @@ await runBars({
         entryCost = 0n;
         peakClose = 0;
         cooldownUntil = batch.seq + COOLDOWN_BARS;
+        isFallback = false; entryPrice = 0;
       }
     } else {
       wasHeld = true;
@@ -121,8 +125,9 @@ await runBars({
       const value = state.value(SYMBOL, held.qty);
       const trendFlipped = !inUptrend();
       const trailingHit = cNum < peakClose * (1 - TRAIL_BPS / 10000);
+      const tpHit = isFallback && entryPrice > 0 && cNum >= entryPrice * (1 + FB_TP_BPS / 10000);
       const stopHit = value * 10000n <= entryCost * BigInt(10000 - STOP_BPS);
-      if (trendFlipped || trailingHit || stopHit) {
+      if (trendFlipped || trailingHit || stopHit || tpHit) {
         return [{ side: 'sell', symbol: SYMBOL, qty: held.qty, max_slippage_bps: MAX_SLIPPAGE_BPS } satisfies SellInput];
       }
       return [];
@@ -139,6 +144,7 @@ await runBars({
       if (notional < BigInt(fees.min_notional_quote_units)) return [];
       entryCost = notional;
       peakClose = Number(close);
+      entryPrice = Number(close); isFallback = false;
       return [{ side: 'buy', symbol: SYMBOL, notional_quote_units: notional, max_slippage_bps: MAX_SLIPPAGE_BPS } satisfies BuyInput];
     }
     // Fallback: no fill yet late in the window — one small trade on a weaker
@@ -150,6 +156,7 @@ await runBars({
       if (notional < BigInt(fees.min_notional_quote_units)) return [];
       entryCost = notional;
       peakClose = Number(close);
+      entryPrice = Number(close); isFallback = true;
       return [{ side: 'buy', symbol: SYMBOL, notional_quote_units: notional, max_slippage_bps: MAX_SLIPPAGE_BPS } satisfies BuyInput];
     }
     return [];
